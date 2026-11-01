@@ -65,6 +65,8 @@ input:focus,textarea:focus,button:focus-visible,a:focus-visible{outline:2px soli
 .btn.ink{background:var(--ink);color:var(--bg)}
 .btn.soft{background:var(--pink-soft);color:var(--ink)}
 .btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
+.btn.pass{background:var(--pass-soft);color:var(--pass);border:1px solid var(--pass)}
+.btn.pass.strong{background:var(--pass);color:var(--surface)}
 .btn.go{background:var(--go-soft);color:var(--go)}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .btn.sm{font-size:14px;min-height:40px;padding:9px 12px}
@@ -439,8 +441,8 @@ function render(){
       if(g.status==='waiting') add('Table ready · text','primary',()=>openSheet(g));
       if(g.status==='notified'||g.status==='passed'){add('They replied, coming','go',()=>setStatus(g,'coming'));add('Text again','soft',()=>openSheet(g))}
       add('Seated','ink',()=>setStatus(g,'seated'));
-      if(g.status==='notified'&&g.notifiedAt+REPLY_MS<now) add('No reply, pass on','ghost',()=>passOn(g));
-      else add('Remove','ghost',()=>setStatus(g,'left'));
+      if(g.status==='notified'){const over=g.notifiedAt+REPLY_MS<now;add(over?'No reply, pass on':'Pass on',over?'pass strong':'pass',()=>passOn(g))}
+      add('Remove','ghost',()=>setStatus(g,'left'));
       list.appendChild(el);
     });
   }
