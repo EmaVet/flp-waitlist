@@ -119,6 +119,10 @@ details summary{cursor:pointer;color:var(--muted);font-weight:600;padding:6px 0}
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
+<script>
+window.addEventListener('error',function(e){var s=document.getElementById('status');if(s){s.textContent='Something went wrong: '+(e.message||'script error')+'. Send M a screenshot of this.';s.hidden=false}});
+</script>
+
 
 <div class="wrap">
   <header>
@@ -138,7 +142,7 @@ details summary{cursor:pointer;color:var(--muted);font-weight:600;padding:6px 0}
   <div id="status" class="notice" hidden></div>
 
   <section class="panel">
-    <form class="add" id="addForm" autocomplete="off">
+    <form class="add" id="addForm" autocomplete="off" onsubmit="return false" action="javascript:void(0)">
       <label>Name<input id="fName" required placeholder="Sarah"></label>
       <label>Mobile<input id="fPhone" required inputmode="tel" placeholder="0412 345 678"></label>
       <div class="full">
@@ -393,7 +397,7 @@ function render(){
   const labels={seated:'Seated',noshow:'No reply',left:'Removed'};
   $('doneList').innerHTML=done.map(g=>`<div class="done"><span>${esc(g.name)} · ${esc(g.party)} pax</span><span>${labels[g.status]||g.status} ${g.doneAt?clock(g.doneAt):''}${g.status==='seated'&&g.doneAt?' · waited '+waitStr(g.doneAt-g.addedAt)+' (quoted '+g.quote+')':''}</span></div>`).join('')||'<div class="note-line" style="padding:8px 0">Nothing yet.</div>';
 }
-function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 setInterval(()=>{if(guests.some(g=>g.status==='notified'||g.status==='waiting'))render()},1000);
 
 async function write(fn){
@@ -401,7 +405,7 @@ async function write(fn){
   try{await fn();return true}
   catch(e){
     if(e&&e.code==='invalid_argument'){canWrite=false;render();showStatus('This account can view the list but not change it.')}
-    else if(e&&e.code==='unavailable'){try{await new Promise(r=>setTimeout(r,500+Math.random()*700));await fn();return true}catch{showStatus('Couldn’t save. Check the connection and try again.')}}
+    else if(e&&e.code==='unavailable'){try{await new Promise(r=>setTimeout(r,500+Math.random()*700));await fn();return true}catch(_e){showStatus('Couldn’t save. Check the connection and try again.')}}
     else showStatus('Couldn’t save ('+(e&&e.code||'error')+'). Try again.');
     return false;
   }
@@ -439,7 +443,7 @@ function markTexted(){if(!sheetGuest)return;const g=sheetGuest;write(()=>db.coll
 $('openMsgs').addEventListener('click',()=>{markTexted();setTimeout(closeSheet,300)});
 async function copy(text,btn){
   try{await navigator.clipboard.writeText(text);const o=btn.textContent;btn.textContent='Copied';setTimeout(()=>btn.textContent=o,1400);return true}
-  catch{return false}
+  catch(_e){return false}
 }
 $('copyMsg').addEventListener('click',async()=>{
   const ok=await copy($('sheetMsg').value,$('copyMsg'));
@@ -496,7 +500,7 @@ $('copyReport').onclick=async()=>{
   const timer=setTimeout(()=>showStatus('Can’t reach the list yet. Check the wifi; it will update when it connects.'),10000);
   db.collection('guests').onSnapshot(snap=>{
     if(!snap.metadata.fromCache){clearTimeout(timer);if($('status').textContent.startsWith('Can’t reach'))showStatus('')}
-    guests=snap.docs.map(d=>({id:d.id,...d.data()}));render();
+    guests=snap.docs.map(d=>(Object.assign({id:d.id},d.data())));render();
   },e=>{clearTimeout(timer);showStatus('The list stopped updating. Reload the page.')});
   db.doc('settings/sms').onSnapshot(d=>{
     if(d.exists&&d.data().template){template=d.data().template;if(document.activeElement!==$('tpl'))$('tpl').value=template}
