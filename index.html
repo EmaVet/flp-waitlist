@@ -242,6 +242,12 @@ window.addEventListener('error',function(e){var s=document.getElementById('statu
 /* Standalone mode: the list is stored on this device (localStorage) instead of a shared database. */
 (function(){
   const KEY='flp-waitlist:';
+  /* opening the page with ?reset wipes everything saved on this device */
+  if(/[?&]reset\b/.test(location.search)){
+    try{Object.keys(localStorage).filter(k=>k.indexOf(KEY)===0).forEach(k=>localStorage.removeItem(k))}catch(e){}
+    try{history.replaceState(null,'',location.pathname)}catch(e){}
+    window.FLP_WAS_RESET=true;
+  }
   const listeners={};
   const mem={}; let storageOK=true;
   try{localStorage.setItem(KEY+'test','1');localStorage.removeItem(KEY+'test')}catch(e){storageOK=false}
@@ -571,6 +577,7 @@ $('copyReport').onclick=async()=>{
   db.collection('reports').onSnapshot(s=>{past=s.docs.map(d=>d.data()).sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));renderPast()},()=>{});
   renderPast();
   render();
+  if(window.FLP_WAS_RESET) toast('All guests and reports cleared');
   if(window.FLP_STORAGE_OK===false) showStatus('This browser isn\u2019t letting the page save, so the list will clear if you close the tab. Try Safari, or turn off private browsing.');
 })();
 </script>
