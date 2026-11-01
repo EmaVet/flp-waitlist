@@ -276,7 +276,7 @@ window.addEventListener('error',function(e){var s=document.getElementById('statu
 <script>
 const DEFAULT_TPL = "Hi {name}, it's Five Little Pigs! Your table for {party} is ready. Please reply within 5 minutes to let us know you're on your way, otherwise we'll pass it to the next guest. Thanks!";
 const REPLY_MS = 5*60*1000;
-let db=null, canWrite=true, guests=[], template=DEFAULT_TPL, party=2, quote=20, seat='Either', sheetGuest=null, justAdded=null, toastTimer=null, past=[], mcp=null;
+let db=null, canWrite=true, guests=[], template=DEFAULT_TPL, party=2, quote=10, seat='Either', sheetGuest=null, justAdded=null, toastTimer=null, past=[], mcp=null;
 const REPORT_TO='5littlepigshuskisson@gmail.com';
 const $=id=>document.getElementById(id);
 
@@ -291,7 +291,8 @@ const drawSeat=()=>chips($('seatChips'),['Inside','Outside','Either'],()=>seat,v
 const drawParty=()=>chips($('partyChips'),[1,2,3,4,5,6,7,8,9,10,11,12],()=>party,v=>party=v,String);
 drawParty();
 drawSeat();
-chips($('quoteChips'),[10,15,20,30,45,60],()=>quote,v=>quote=v,v=>v+' min');
+const drawQuote=()=>chips($('quoteChips'),[10,15,20,30,45,60],()=>quote,v=>quote=v,v=>v+' min');
+drawQuote();
 
 function normPhone(p){
   let s=(p||'').replace(/[^\d+]/g,'');
@@ -487,7 +488,7 @@ $('addForm').addEventListener('submit',async e=>{
     toast(name+' added \u00b7 '+ordinal(Math.max(pos,1))+' in line');
     if(ref&&ref.id){justAdded=ref.id;render();setTimeout(()=>{if(justAdded===ref.id){justAdded=null;render()}},4000)}
   }
-  if(ok){$('fName').value='';$('fPhone').value='';$('fNote').value='';party=2;drawParty();seat='Either';drawSeat();if(document.activeElement)document.activeElement.blur()}
+  if(ok){$('fName').value='';$('fPhone').value='';$('fNote').value='';party=2;drawParty();seat='Either';drawSeat();quote=10;drawQuote();if(document.activeElement)document.activeElement.blur()}
 });
 
 /* compose sheet */
