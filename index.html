@@ -18,7 +18,7 @@
 :root{
   --bg:#fbfafa; --surface:#ffffff; --ink:#1b1718; --muted:#6f6668; --line:#e9e3e4;
   --pink:#c9ebe5; --pink-soft:#e7f5f2; --rose:#0f766e; --rose-ink:#ffffff;
-  --go:#2f7a4f; --go-soft:#e3f2e8; --warn:#b26a00; --warn-soft:#fdf0dc; --late:#c0392b; --late-soft:#fbe4e1;
+  --go:#2f7a4f; --go-soft:#e3f2e8; --warn:#b26a00; --warn-soft:#fdf0dc; --late:#c0392b; --late-soft:#fbe4e1; --pass:#6a55b8; --pass-soft:#efebfa;
   --logo-filter:none;
   --display:"Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
   --body:"Figtree", -apple-system, "Segoe UI", system-ui, sans-serif;
@@ -26,12 +26,12 @@
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#151213; --surface:#1f1b1c; --ink:#f4eff0; --muted:#a99fa1; --line:#332c2e;
   --pink:#1d4642; --pink-soft:#16292a; --rose:#4fd1c0; --rose-ink:#04201c;
-  --go:#6cc98f; --go-soft:#1b2c22; --warn:#f0b35c; --warn-soft:#30261a; --late:#ff7b6b; --late-soft:#341c1a;
+  --go:#6cc98f; --go-soft:#1b2c22; --warn:#f0b35c; --warn-soft:#30261a; --late:#ff7b6b; --late-soft:#341c1a; --pass:#b9a9f5; --pass-soft:#252038;
   --logo-filter:invert(1); color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#151213; --surface:#1f1b1c; --ink:#f4eff0; --muted:#a99fa1; --line:#332c2e;
   --pink:#1d4642; --pink-soft:#16292a; --rose:#4fd1c0; --rose-ink:#04201c;
-  --go:#6cc98f; --go-soft:#1b2c22; --warn:#f0b35c; --warn-soft:#30261a; --late:#ff7b6b; --late-soft:#341c1a;
+  --go:#6cc98f; --go-soft:#1b2c22; --warn:#f0b35c; --warn-soft:#30261a; --late:#ff7b6b; --late-soft:#341c1a; --pass:#b9a9f5; --pass-soft:#252038;
   --logo-filter:invert(1); color-scheme:dark}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font:16px/1.45 var(--body);-webkit-tap-highlight-color:transparent}
@@ -86,6 +86,8 @@ h2{font:700 13px var(--body);letter-spacing:.1em;text-transform:uppercase;color:
 .b-wait{background:var(--pink-soft);color:var(--ink)}
 .b-notified{background:var(--warn);color:var(--surface)}
 .b-late{background:var(--late);color:var(--surface)}
+.b-passed{background:var(--pass);color:var(--surface)}
+.guest.passed{border-color:var(--pass);background:var(--pass-soft)}
 .b-coming{background:var(--go);color:var(--surface)}
 .actions{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
 .actions .btn{flex:1 1 auto}
@@ -301,6 +303,19 @@ function waitStr(ms){const m=Math.round(ms/60000);return m<60?m+' min':Math.floo
 function clock(ts){return new Date(ts).toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'})}
 function ordinal(n){const s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0])}
 function toast(t){const el=$('added');el.textContent=t;el.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{el.hidden=true},5000)}
+const ACTIVE=['waiting','notified','coming','passed'];
+function ord(g){return typeof g.order==='number'?g.order:g.addedAt}
+function byOrder(a,b){return ord(a)-ord(b)}
+/* move a guest who didn't reply to just below the next waiting guest with the same party size */
+function passOn(g){
+  const act=guests.filter(x=>ACTIVE.includes(x.status)&&x.id!==g.id).sort(byOrder);
+  const later=act.filter(x=>ord(x)>ord(g)&&x.status==='waiting');
+  const tgt=later.find(x=>+x.party===+g.party)||later[0];
+  const patch={status:'passed',passedCount:(g.passedCount||0)+1,passedAt:Date.now()};
+  if(tgt){const nxt=act[act.indexOf(tgt)+1];patch.order=nxt?(ord(tgt)+ord(nxt))/2:ord(tgt)+1}
+  write(()=>db.collection('guests').doc(g.id).update(patch));
+  toast(g.name+' passed over'+(tgt?' \u00b7 now after '+tgt.name:''));
+}
 function showStatus(t){const s=$('status');s.textContent=t||'';s.hidden=!t}
 
 /* close report */
@@ -321,9 +336,9 @@ function buildReport(){
     firstAt:first,lastAt:last,parties:all.length,covers:covers(all),
     seatedParties:seated.length,seatedCovers:covers(seated),
     texted:all.filter(g=>g.notifiedAt).length,
-    noReply:all.filter(g=>g.status==='noshow').length,
+    noReply:all.filter(g=>g.passedCount||g.status==='noshow').length,
     removed:all.filter(g=>g.status==='left').length,
-    stillWaiting:all.filter(g=>['waiting','notified','coming'].includes(g.status)).length,
+    stillWaiting:all.filter(g=>ACTIVE.includes(g.status)).length,
     avgQuoteMin:seated.length?Math.round(avg(seated.map(g=>g.quote||0))):null,
     avgWaitMs:avg(waits),longestWaitMs:waits.length?Math.max(...waits):null,
     withinQuote:seated.filter(g=>g.doneAt-g.addedAt<=((g.quote||0)+5)*60000).length,
@@ -379,8 +394,8 @@ function renderPast(){
 
 function render(){
   const now=Date.now();
-  const active=guests.filter(g=>['waiting','notified','coming'].includes(g.status)).sort((a,b)=>a.addedAt-b.addedAt);
-  const done=guests.filter(g=>!['waiting','notified','coming'].includes(g.status)).sort((a,b)=>(b.doneAt||0)-(a.doneAt||0));
+  const active=guests.filter(g=>ACTIVE.includes(g.status)).sort(byOrder);
+  const done=guests.filter(g=>!ACTIVE.includes(g.status)).sort((a,b)=>(b.doneAt||0)-(a.doneAt||0));
   $('sWaiting').textContent=active.length;
   $('sCovers').textContent=active.reduce((n,g)=>n+(+g.party||0),0);
   $('sTexted').textContent=active.filter(g=>g.status==='notified').length;
@@ -398,6 +413,7 @@ function render(){
         if(left>0){const s=Math.ceil(left/1000);cls+=' notified';badge='<span class="badge b-notified">Texted · '+Math.floor(s/60)+':'+String(s%60).padStart(2,'0')+'</span>'}
         else{cls+=' late';badge='<span class="badge b-late">No reply · '+ago(now-g.notifiedAt-REPLY_MS)+' over</span>'}
       }
+      if(g.status==='passed'){cls+=' passed';badge='<span class="badge b-passed">Passed over'+(g.passedCount>1?' \u00d7'+g.passedCount:'')+'</span>'}
       if(g.status==='coming'){cls+=' coming';badge='<span class="badge b-coming">On their way</span>'}
       if(g.id===justAdded) cls+=' new';
       el.className=cls;
@@ -410,9 +426,9 @@ function render(){
       const a=el.querySelector('.actions');
       const add=(label,cls,fn)=>{const b=document.createElement('button');b.type='button';b.className='btn sm '+cls;b.textContent=label;b.disabled=!canWrite;b.onclick=fn;a.appendChild(b)};
       if(g.status==='waiting') add('Table ready · text','primary',()=>openSheet(g));
-      if(g.status==='notified'){add('They replied, coming','go',()=>setStatus(g,'coming'));add('Text again','soft',()=>openSheet(g))}
+      if(g.status==='notified'||g.status==='passed'){add('They replied, coming','go',()=>setStatus(g,'coming'));add('Text again','soft',()=>openSheet(g))}
       add('Seated','ink',()=>setStatus(g,'seated'));
-      if(g.status==='notified'&&g.notifiedAt+REPLY_MS<now) add('No reply, pass on','ghost',()=>setStatus(g,'noshow'));
+      if(g.status==='notified'&&g.notifiedAt+REPLY_MS<now) add('No reply, pass on','ghost',()=>passOn(g));
       else add('Remove','ghost',()=>setStatus(g,'left'));
       list.appendChild(el);
     });
@@ -451,7 +467,7 @@ $('addForm').addEventListener('submit',async e=>{
   const ok=await write(async()=>{ref=await db.collection('guests').add({name,phone,party,quote,seat,note:$('fNote').value.trim(),status:'waiting',addedAt:Date.now()})});
   $('addBtn').disabled=false;
   if(ok){
-    const pos=guests.filter(g=>['waiting','notified','coming'].includes(g.status)).length;
+    const pos=guests.filter(g=>ACTIVE.includes(g.status)).length;
     toast(name+' added \u00b7 '+ordinal(Math.max(pos,1))+' in line');
     if(ref&&ref.id){justAdded=ref.id;render();setTimeout(()=>{if(justAdded===ref.id){justAdded=null;render()}},4000)}
   }
