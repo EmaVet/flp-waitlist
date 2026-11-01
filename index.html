@@ -441,7 +441,7 @@ function render(){
       tl.appendChild(ti);a.appendChild(tl);
       const add=(label,cls,fn)=>{const b=document.createElement('button');b.type='button';b.className='btn sm '+cls;b.textContent=label;b.disabled=!canWrite;b.onclick=fn;a.appendChild(b)};
       if(g.status==='waiting') add('Table ready · text','primary',()=>openSheet(g));
-      if(g.status==='notified'||g.status==='passed'){add('Replied','go',()=>setStatus(g,'coming'));add('Text again','soft',()=>openSheet(g))}
+      if(g.status==='notified'||g.status==='passed'){add('Replied?','go',()=>setStatus(g,'coming'));add('Text again','soft',()=>openSheet(g))}
       if(g.status!=='coming'){const c=document.createElement('a');c.className='btn sm call';c.href='tel:'+g.phone;c.textContent='Call';c.setAttribute('aria-label','Call '+g.name+' on '+prettyPhone(g.phone));a.appendChild(c)}
       add('Seated','ink',()=>setStatus(g,'seated'));
       if(g.status==='notified'){const over=g.notifiedAt+REPLY_MS<now;add(over?'No reply, pass on':'Pass on',over?'pass strong':'pass',()=>passOn(g))}
