@@ -99,6 +99,9 @@ h2{font:700 13px var(--body);letter-spacing:.1em;text-transform:uppercase;color:
 .past summary{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;color:var(--ink);font-weight:600}
 .past summary span:last-child{color:var(--muted);font-weight:500}
 .past .rep{margin:10px 0 6px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);font:600 16px var(--body);padding:13px 20px;border-radius:999px;box-shadow:0 6px 24px rgba(0,0,0,.18);z-index:30;width:max-content;max-width:calc(100% - 32px);text-align:center}
+.guest.new{box-shadow:0 0 0 3px var(--rose)}
+@media (prefers-reduced-motion:no-preference){.toast{animation:pop .2s ease-out}@keyframes pop{from{transform:translate(-50%,12px);opacity:0}}}
 .empty{text-align:center;color:var(--muted);padding:28px 16px;border:1px dashed var(--line);border-radius:16px}
 details summary{cursor:pointer;color:var(--muted);font-weight:600;padding:6px 0}
 .done{display:flex;justify-content:space-between;gap:10px;padding:10px 2px;border-bottom:1px solid var(--line);font-size:15px}
@@ -203,6 +206,8 @@ window.addEventListener('error',function(e){var s=document.getElementById('statu
   </section>
 </div>
 
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
 <div class="sheet-bg" id="sheetBg" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
     <h3 id="sheetTitle">Text Sarah</h3>
@@ -246,7 +251,7 @@ window.addEventListener('error',function(e){var s=document.getElementById('statu
 <script>
 const DEFAULT_TPL = "Hi {name}, it's Five Little Pigs! Your table for {party} is ready. Please reply within 5 minutes to let us know you're on your way, otherwise we'll pass it to the next guest. Thanks!";
 const REPLY_MS = 5*60*1000;
-let db=null, canWrite=true, guests=[], template=DEFAULT_TPL, party=2, quote=20, seat='Either', sheetGuest=null, past=[], mcp=null;
+let db=null, canWrite=true, guests=[], template=DEFAULT_TPL, party=2, quote=20, seat='Either', sheetGuest=null, justAdded=null, toastTimer=null, past=[], mcp=null;
 const REPORT_TO='5littlepigshuskisson@gmail.com';
 const $=id=>document.getElementById(id);
 
@@ -277,6 +282,8 @@ function fill(t,g){return t.replace(/\{name\}/g,(g.name||'').split(' ')[0]).repl
 function ago(ms){const m=Math.floor(ms/60000);return m<1?'just now':m<60?m+' min':Math.floor(m/60)+'h '+(m%60)+'m'}
 function waitStr(ms){const m=Math.round(ms/60000);return m<60?m+' min':Math.floor(m/60)+'h '+(m%60)+'m'}
 function clock(ts){return new Date(ts).toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'})}
+function ordinal(n){const s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0])}
+function toast(t){const el=$('toast');el.textContent=t;el.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{el.hidden=true},3000)}
 function showStatus(t){const s=$('status');s.textContent=t||'';s.hidden=!t}
 
 /* close report */
@@ -375,6 +382,7 @@ function render(){
         else{cls+=' late';badge='<span class="badge b-late">No reply · '+ago(now-g.notifiedAt-REPLY_MS)+' over</span>'}
       }
       if(g.status==='coming'){cls+=' coming';badge='<span class="badge b-coming">On their way</span>'}
+      if(g.id===justAdded) cls+=' new';
       el.className=cls;
       const due=g.addedAt+(g.quote||0)*60000;
       el.innerHTML=`<div class="party"><div><b>${esc(g.party)}</b><small>pax</small></div></div>
@@ -422,8 +430,14 @@ $('addForm').addEventListener('submit',async e=>{
   if(!name||phone.replace(/\D/g,'').length<8){showStatus('Add a name and a full mobile number.');return}
   showStatus('');
   $('addBtn').disabled=true;
-  const ok=await write(()=>db.collection('guests').add({name,phone,party,quote,seat,note:$('fNote').value.trim(),status:'waiting',addedAt:Date.now()}));
+  let ref=null;
+  const ok=await write(async()=>{ref=await db.collection('guests').add({name,phone,party,quote,seat,note:$('fNote').value.trim(),status:'waiting',addedAt:Date.now()})});
   $('addBtn').disabled=false;
+  if(ok){
+    const pos=guests.filter(g=>['waiting','notified','coming'].includes(g.status)).length;
+    toast(name+' added \u00b7 '+ordinal(Math.max(pos,1))+' in line');
+    if(ref&&ref.id){justAdded=ref.id;render();setTimeout(()=>{if(justAdded===ref.id){justAdded=null;render()}},4000)}
+  }
   if(ok){$('fName').value='';$('fPhone').value='';$('fNote').value='';party=2;drawParty();seat='Either';drawSeat();$('fName').focus()}
 });
 
