@@ -100,6 +100,9 @@ h2{font:700 13px var(--body);letter-spacing:.1em;text-transform:uppercase;color:
 .past summary span:last-child{color:var(--muted);font-weight:500}
 .past .rep{margin:10px 0 6px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);font:600 16px var(--body);padding:13px 20px;border-radius:999px;box-shadow:0 6px 24px rgba(0,0,0,.18);z-index:30;width:max-content;max-width:calc(100% - 32px);text-align:center}
+.added{background:var(--pink-soft);color:var(--ink);border:1px solid var(--rose);border-radius:12px;padding:12px 14px;font-weight:700;font-size:16px;text-align:center}
+.added::before{content:"\2713  ";color:var(--rose)}
+@media (max-width:520px){.guest{grid-template-columns:auto minmax(0,1fr)}.guest>div:nth-child(3){grid-column:2}}
 .guest.new{box-shadow:0 0 0 3px var(--rose)}
 @media (prefers-reduced-motion:no-preference){.toast{animation:pop .2s ease-out}@keyframes pop{from{transform:translate(-50%,12px);opacity:0}}}
 .tbl{font:700 13px var(--body);background:var(--rose);color:var(--rose-ink);border-radius:999px;padding:3px 9px;vertical-align:middle;white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -163,6 +166,7 @@ window.addEventListener('error',function(e){var s=document.getElementById('statu
       </div>
       <label class="full">Note<input id="fNote" placeholder="Outside OK, high chair, etc. (optional)"></label>
       <button class="btn ink full" id="addBtn" type="submit">Add to waitlist</button>
+      <div class="added full" id="added" role="status" aria-live="polite" hidden></div>
     </form>
   </section>
 
@@ -285,7 +289,7 @@ function ago(ms){const m=Math.floor(ms/60000);return m<1?'just now':m<60?m+' min
 function waitStr(ms){const m=Math.round(ms/60000);return m<60?m+' min':Math.floor(m/60)+'h '+(m%60)+'m'}
 function clock(ts){return new Date(ts).toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'})}
 function ordinal(n){const s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0])}
-function toast(t){const el=$('toast');el.textContent=t;el.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{el.hidden=true},3000)}
+function toast(t){const el=$('added');el.textContent=t;el.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{el.hidden=true},5000)}
 function showStatus(t){const s=$('status');s.textContent=t||'';s.hidden=!t}
 
 /* close report */
@@ -440,7 +444,7 @@ $('addForm').addEventListener('submit',async e=>{
     toast(name+' added \u00b7 '+ordinal(Math.max(pos,1))+' in line');
     if(ref&&ref.id){justAdded=ref.id;render();setTimeout(()=>{if(justAdded===ref.id){justAdded=null;render()}},4000)}
   }
-  if(ok){$('fName').value='';$('fPhone').value='';$('fNote').value='';party=2;drawParty();seat='Either';drawSeat();$('fName').focus()}
+  if(ok){$('fName').value='';$('fPhone').value='';$('fNote').value='';party=2;drawParty();seat='Either';drawSeat();if(document.activeElement)document.activeElement.blur()}
 });
 
 /* compose sheet */
