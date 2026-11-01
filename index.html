@@ -230,7 +230,6 @@ window.addEventListener('error',function(e){var s=document.getElementById('statu
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
     <h3 id="sheetTitle">Text Sarah</h3>
     <div class="to"><span class="note-line">To</span><b id="sheetTo"></b><button class="btn ghost sm" id="copyNum" type="button">Copy</button></div>
-    <label>Table number<input id="sheetTable" inputmode="numeric" autocomplete="off" placeholder="e.g. 12"></label>
     <label>Message<textarea id="sheetMsg"></textarea></label>
     <a class="btn primary" id="openMsgs" href="#">Open in Messages</a>
     <button class="btn soft" id="copyMsg" type="button">Copy message</button>
@@ -497,14 +496,13 @@ function openSheet(g){
   sheetGuest=g;
   $('sheetTitle').textContent='Text '+g.name;
   $('sheetTo').textContent=prettyPhone(g.phone);
-  $('sheetTable').value=g.table||'';
   $('sheetMsg').value=fill(template,g);
   $('openMsgs').href=smsHref(g.phone,$('sheetMsg').value);
   $('sheetBg').hidden=false;
 }
 function closeSheet(){$('sheetBg').hidden=true;sheetGuest=null}
 $('sheetMsg').addEventListener('input',()=>{if(sheetGuest)$('openMsgs').href=smsHref(sheetGuest.phone,$('sheetMsg').value)});
-function markTexted(){if(!sheetGuest)return;const g=sheetGuest;write(()=>db.collection('guests').doc(g.id).update({status:'notified',notifiedAt:Date.now(),table:$('sheetTable').value.trim()}))}
+function markTexted(){if(!sheetGuest)return;const g=sheetGuest;write(()=>db.collection('guests').doc(g.id).update({status:'notified',notifiedAt:Date.now()}))}
 $('openMsgs').addEventListener('click',()=>{markTexted();setTimeout(closeSheet,300)});
 async function copy(text,btn){
   try{await navigator.clipboard.writeText(text);const o=btn.textContent;btn.textContent='Copied';setTimeout(()=>btn.textContent=o,1400);return true}
