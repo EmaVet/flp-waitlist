@@ -67,6 +67,8 @@ input:focus,textarea:focus,button:focus-visible,a:focus-visible{outline:2px soli
 .btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
 .btn.pass{background:var(--pass-soft);color:var(--pass);border:1px solid var(--pass)}
 .btn.pass.strong{background:var(--pass);color:var(--surface)}
+.btn.call{background:var(--surface);color:var(--ink);border:1px solid var(--ink)}
+.btn.call::before{content:"\260E";font-size:15px}
 .btn.go{background:var(--go-soft);color:var(--go)}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .btn.sm{font-size:14px;min-height:40px;padding:9px 12px}
@@ -440,6 +442,7 @@ function render(){
       const add=(label,cls,fn)=>{const b=document.createElement('button');b.type='button';b.className='btn sm '+cls;b.textContent=label;b.disabled=!canWrite;b.onclick=fn;a.appendChild(b)};
       if(g.status==='waiting') add('Table ready · text','primary',()=>openSheet(g));
       if(g.status==='notified'||g.status==='passed'){add('Replied','go',()=>setStatus(g,'coming'));add('Text again','soft',()=>openSheet(g))}
+      if(g.status!=='coming'){const c=document.createElement('a');c.className='btn sm call';c.href='tel:'+g.phone;c.textContent='Call';c.setAttribute('aria-label','Call '+g.name+' on '+prettyPhone(g.phone));a.appendChild(c)}
       add('Seated','ink',()=>setStatus(g,'seated'));
       if(g.status==='notified'){const over=g.notifiedAt+REPLY_MS<now;add(over?'No reply, pass on':'Pass on',over?'pass strong':'pass',()=>passOn(g))}
       add('Remove','ghost',()=>setStatus(g,'left'));
