@@ -112,6 +112,8 @@ h2{font:700 13px var(--body);letter-spacing:.1em;text-transform:uppercase;color:
 .guest.new{box-shadow:0 0 0 3px var(--rose)}
 @media (prefers-reduced-motion:no-preference){.toast{animation:pop .2s ease-out}@keyframes pop{from{transform:translate(-50%,12px);opacity:0}}}
 .tbl{font:700 13px var(--body);background:var(--rose);color:var(--rose-ink);border-radius:999px;padding:3px 9px;vertical-align:middle;white-space:nowrap;font-variant-numeric:tabular-nums}
+.tblin{display:flex;flex-direction:row;align-items:center;gap:6px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);flex:0 0 auto}
+.tblin input{width:64px;padding:8px 8px;font:700 17px var(--body);text-align:center;border-radius:10px;font-variant-numeric:tabular-nums}
 .empty{text-align:center;color:var(--muted);padding:28px 16px;border:1px dashed var(--line);border-radius:16px}
 details summary{cursor:pointer;color:var(--muted);font-weight:600;padding:6px 0}
 .done{display:flex;justify-content:space-between;gap:10px;padding:10px 2px;border-bottom:1px solid var(--line);font-size:15px}
@@ -393,6 +395,8 @@ function renderPast(){
 }
 
 function render(){
+  const ae=document.activeElement;
+  if(ae&&ae.classList&&ae.classList.contains('tblin-input')) return; /* don't redraw while typing a table number */
   const now=Date.now();
   const active=guests.filter(g=>ACTIVE.includes(g.status)).sort(byOrder);
   const done=guests.filter(g=>!ACTIVE.includes(g.status)).sort((a,b)=>(b.doneAt||0)-(a.doneAt||0));
@@ -424,6 +428,13 @@ function render(){
         ${g.note?`<div class="note">${esc(g.note)}</div>`:''}</div>
         <div>${badge}</div><div class="actions"></div>`;
       const a=el.querySelector('.actions');
+      const tl=document.createElement('label');tl.className='tblin';tl.textContent='Table';
+      const ti=document.createElement('input');ti.className='tblin-input';ti.id='tbl-'+g.id;ti.inputMode='numeric';ti.autocomplete='off';ti.placeholder='#';ti.value=g.table||'';ti.disabled=!canWrite;
+      const saveTbl=()=>{const v=ti.value.trim();if(v!==(g.table||'')){write(()=>db.collection('guests').doc(g.id).update({table:v}))}};
+      ti.addEventListener('change',saveTbl);
+      ti.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();ti.blur()}});
+      ti.addEventListener('blur',()=>setTimeout(render,0));
+      tl.appendChild(ti);a.appendChild(tl);
       const add=(label,cls,fn)=>{const b=document.createElement('button');b.type='button';b.className='btn sm '+cls;b.textContent=label;b.disabled=!canWrite;b.onclick=fn;a.appendChild(b)};
       if(g.status==='waiting') add('Table ready · text','primary',()=>openSheet(g));
       if(g.status==='notified'||g.status==='passed'){add('They replied, coming','go',()=>setStatus(g,'coming'));add('Text again','soft',()=>openSheet(g))}
