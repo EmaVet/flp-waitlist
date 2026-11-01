@@ -231,8 +231,14 @@ window.addEventListener('error',function(e){var s=document.getElementById('statu
 (function(){
   const KEY='flp-waitlist:';
   const listeners={};
-  function load(col){try{return JSON.parse(localStorage.getItem(KEY+col)||'{}')}catch(e){return {}}}
-  function save(col,obj){try{localStorage.setItem(KEY+col,JSON.stringify(obj))}catch(e){}notify(col)}
+  const mem={}; let storageOK=true;
+  try{localStorage.setItem(KEY+'test','1');localStorage.removeItem(KEY+'test')}catch(e){storageOK=false}
+  window.FLP_STORAGE_OK=storageOK;
+  function load(col){
+    if(storageOK){try{const v=localStorage.getItem(KEY+col);if(v!=null)mem[col]=JSON.parse(v)}catch(e){}}
+    return JSON.parse(JSON.stringify(mem[col]||{}));
+  }
+  function save(col,obj){mem[col]=obj;if(storageOK){try{localStorage.setItem(KEY+col,JSON.stringify(obj))}catch(e){storageOK=false;window.FLP_STORAGE_OK=false}}notify(col)}
   function snapDoc(id,d){return {id,exists:!!d,data:()=>d,metadata:{fromCache:false,hasPendingWrites:false}}}
   function notify(col){(listeners[col]||[]).forEach(fn=>fn())}
   window.addEventListener('storage',e=>{if(e.key&&e.key.startsWith(KEY))notify(e.key.slice(KEY.length))});
@@ -529,6 +535,7 @@ $('copyReport').onclick=async()=>{
   db.collection('reports').onSnapshot(s=>{past=s.docs.map(d=>d.data()).sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));renderPast()},()=>{});
   renderPast();
   render();
+  if(window.FLP_STORAGE_OK===false) showStatus('This browser isn\u2019t letting the page save, so the list will clear if you close the tab. Try Safari, or turn off private browsing.');
 })();
 </script>
 
