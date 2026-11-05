@@ -115,7 +115,14 @@ h2{font:700 13px var(--body);letter-spacing:.1em;text-transform:uppercase;color:
 @media (max-width:520px){.guest{grid-template-columns:auto minmax(0,1fr)}.guest>div:nth-child(3){grid-column:2}}
 .guest.new{box-shadow:0 0 0 3px var(--rose)}
 @media (prefers-reduced-motion:no-preference){.toast{animation:pop .2s ease-out}@keyframes pop{from{transform:translate(-50%,12px);opacity:0}}}
-.tbl{font:700 13px var(--body);background:var(--rose);color:var(--rose-ink);border-radius:999px;padding:3px 9px;vertical-align:middle;white-space:nowrap;font-variant-numeric:tabular-nums}
+.bigparty{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
+.bigparty label{font-size:12px}
+.stepper{display:flex;align-items:center;gap:8px}
+.stepper .chip{width:48px;padding:10px 0;font-size:20px;line-height:1}
+.stepper input{width:72px;text-align:center;font:800 20px var(--body);font-variant-numeric:tabular-nums}
+.seat.out{background:var(--rose);color:var(--rose-ink);border-color:var(--rose);font-weight:700}
+.guest.outside{border-left:6px solid var(--rose)}
+.tbl{font:700 13px var(--body);background:var(--ink);color:var(--bg);border-radius:999px;padding:3px 9px;vertical-align:middle;white-space:nowrap;font-variant-numeric:tabular-nums}
 .tblin{display:flex;flex-direction:row;align-items:center;gap:6px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);flex:0 0 auto}
 .tblin input{width:64px;padding:8px 8px;font:700 17px var(--body);text-align:center;border-radius:10px;font-variant-numeric:tabular-nums}
 .empty{text-align:center;color:var(--muted);padding:28px 16px;border:1px dashed var(--line);border-radius:16px}
@@ -161,6 +168,7 @@ window.addEventListener('error',function(e){var s=document.getElementById('statu
       <div class="full">
         <label style="margin-bottom:6px">Party size</label>
         <div class="row" id="partyChips"></div>
+        <div class="bigparty" id="bigParty" hidden><label for="fBig">How many people?</label><div class="stepper"><button type="button" class="chip" id="bigMinus" aria-label="One fewer">−</button><input id="fBig" inputmode="numeric" value="12" aria-label="Party size"><button type="button" class="chip" id="bigPlus" aria-label="One more">+</button></div></div>
       </div>
       <div class="full">
         <label style="margin-bottom:6px">Seating</label>
@@ -225,6 +233,21 @@ window.addEventListener('error',function(e){var s=document.getElementById('statu
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<div class="sheet-bg" id="editBg" hidden>
+  <form class="sheet" id="editForm" role="dialog" aria-modal="true" aria-labelledby="editTitle" autocomplete="off">
+    <h3 id="editTitle">Edit guest</h3>
+    <label>Name<input id="eName" required></label>
+    <label>Mobile<input id="ePhone" required inputmode="tel"></label>
+    <div><label style="margin-bottom:6px">Party size</label>
+      <div class="stepper"><button type="button" class="chip" id="eMinus" aria-label="One fewer">−</button><input id="eParty" inputmode="numeric" aria-label="Party size"><button type="button" class="chip" id="ePlus" aria-label="One more">+</button></div></div>
+    <div><label style="margin-bottom:6px">Seating</label><div class="row" id="eSeatChips"></div></div>
+    <label>Note<input id="eNote" placeholder="Optional"></label>
+    <div class="note-line" id="eErr"></div>
+    <button class="btn primary" type="submit">Save changes</button>
+    <button class="btn ghost" type="button" id="eCancel">Cancel</button>
+  </form>
+</div>
 
 <div class="sheet-bg" id="sheetBg" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
@@ -293,7 +316,16 @@ function chips(el, values, get, set, fmt){
     b.setAttribute('aria-pressed', v===get()); b.onclick=()=>{set(v);chips(el,values,get,set,fmt)}; el.appendChild(b)});
 }
 const drawSeat=()=>chips($('seatChips'),['Inside','Outside','Either'],()=>seat,v=>seat=v,String);
-const drawParty=()=>chips($('partyChips'),[1,2,3,4,5,6,7,8,9,10,11,12],()=>party,v=>party=v,String);
+let bigOn=false;
+const drawParty=()=>{
+  chips($('partyChips'),[1,2,3,4,5,6,7,8,9,10,11,'+'],()=>bigOn?'+':party,v=>{if(v==='+'){bigOn=true;party=Math.max(12,+$('fBig').value||12);$('fBig').value=party}else{bigOn=false;party=v}drawParty()},String);
+  $('bigParty').hidden=!bigOn;
+};
+function clampBig(n){n=Math.round(+n||12);return Math.min(99,Math.max(1,n))}
+$('fBig').addEventListener('input',()=>{const v=$('fBig').value.replace(/\D/g,'');$('fBig').value=v;if(v)party=clampBig(v)});
+$('fBig').addEventListener('blur',()=>{party=clampBig($('fBig').value);$('fBig').value=party});
+$('bigMinus').onclick=()=>{party=clampBig(party-1);$('fBig').value=party};
+$('bigPlus').onclick=()=>{party=clampBig(party+1);$('fBig').value=party};
 drawParty();
 drawSeat();
 const drawQuote=()=>chips($('quoteChips'),[10,15,20,30,45,60],()=>quote,v=>quote=v,v=>v+' min');
@@ -429,11 +461,12 @@ function render(){
       }
       if(g.status==='passed'){cls+=' passed';badge='<span class="badge b-passed">Passed over'+(g.passedCount>1?' \u00d7'+g.passedCount:'')+'</span>'}
       if(g.status==='coming'){cls+=' coming';badge='<span class="badge b-coming">On their way</span>'}
+      if(g.seat==='Outside') cls+=' outside';
       if(g.id===justAdded) cls+=' new';
       el.className=cls;
       const due=g.addedAt+(g.quote||0)*60000;
       el.innerHTML=`<div class="party"><div><b>${esc(g.party)}</b><small>pax</small></div></div>
-        <div class="who"><div class="name">${esc(g.name)}${g.seat&&g.seat!=='Either'?` <span class="seat">${esc(g.seat)}</span>`:''}${g.table?` <span class="tbl">Table ${esc(g.table)}</span>`:''}</div>
+        <div class="who"><div class="name">${esc(g.name)}${g.seat&&g.seat!=='Either'?` <span class="seat${g.seat==='Outside'?' out':''}">${esc(g.seat)}</span>`:''}${g.table?` <span class="tbl">Table ${esc(g.table)}</span>`:''}</div>
         <div class="meta">${esc(prettyPhone(g.phone))} · in ${clock(g.addedAt)} · quoted ${g.quote} min (${clock(due)})</div>
         ${g.note?`<div class="note">${esc(g.note)}</div>`:''}</div>
         <div>${badge}</div><div class="actions"></div>`;
@@ -451,6 +484,7 @@ function render(){
       if(g.status!=='coming'){const c=document.createElement('a');c.className='btn sm call';c.href='tel:'+g.phone;c.textContent='Call';c.setAttribute('aria-label','Call '+g.name+' on '+prettyPhone(g.phone));a.appendChild(c)}
       add('Seated','ink',()=>setStatus(g,'seated'));
       if(g.status==='notified'){const over=g.notifiedAt+REPLY_MS<now;add(over?'No reply, pass on':'Pass on',over?'pass strong':'pass',()=>passOn(g))}
+      add('Edit','ghost',()=>openEdit(g));
       add('Remove','ghost',()=>setStatus(g,'left'));
       list.appendChild(el);
     });
@@ -493,7 +527,7 @@ $('addForm').addEventListener('submit',async e=>{
     toast(name+' added \u00b7 '+ordinal(Math.max(pos,1))+' in line');
     if(ref&&ref.id){justAdded=ref.id;render();setTimeout(()=>{if(justAdded===ref.id){justAdded=null;render()}},4000)}
   }
-  if(ok){$('fName').value='';$('fPhone').value='';$('fNote').value='';party=2;drawParty();seat='Either';drawSeat();quote=10;drawQuote();if(document.activeElement)document.activeElement.blur()}
+  if(ok){$('fName').value='';$('fPhone').value='';$('fNote').value='';party=2;bigOn=false;$('fBig').value=12;drawParty();seat='Either';drawSeat();quote=10;drawQuote();if(document.activeElement)document.activeElement.blur()}
 });
 
 /* compose sheet */
@@ -507,6 +541,25 @@ function openSheet(g){
   $('sheetBg').hidden=false;
 }
 function closeSheet(){$('sheetBg').hidden=true;sheetGuest=null}
+let editGuest=null, eSeat='Either';
+const drawESeat=()=>chips($('eSeatChips'),['Inside','Outside','Either'],()=>eSeat,v=>eSeat=v,String);
+function openEdit(g){
+  editGuest=g; $('eName').value=g.name||''; $('ePhone').value=prettyPhone(g.phone); $('eParty').value=g.party||2;
+  eSeat=g.seat||'Either'; drawESeat(); $('eNote').value=g.note||''; $('eErr').textContent=''; $('editBg').hidden=false;
+}
+function closeEdit(){$('editBg').hidden=true;editGuest=null}
+$('eMinus').onclick=()=>{$('eParty').value=clampBig((+$('eParty').value||2)-1)};
+$('ePlus').onclick=()=>{$('eParty').value=clampBig((+$('eParty').value||2)+1)};
+$('eCancel').onclick=closeEdit;
+$('editBg').addEventListener('click',e=>{if(e.target===$('editBg'))closeEdit()});
+$('editForm').addEventListener('submit',async e=>{
+  e.preventDefault(); if(!editGuest) return;
+  const name=$('eName').value.trim(), phone=normPhone($('ePhone').value);
+  if(!name||phone.replace(/\D/g,'').length<8){$('eErr').textContent='Add a name and a full mobile number.';return}
+  const g=editGuest, patch={name,phone,party:clampBig($('eParty').value),seat:eSeat,note:$('eNote').value.trim()};
+  closeEdit();
+  if(await write(()=>db.collection('guests').doc(g.id).update(patch))) toast(name+' updated');
+});
 $('sheetMsg').addEventListener('input',()=>{if(sheetGuest)$('openMsgs').href=smsHref(sheetGuest.phone,$('sheetMsg').value)});
 function markTexted(){if(!sheetGuest)return;const g=sheetGuest;write(()=>db.collection('guests').doc(g.id).update({status:'notified',notifiedAt:Date.now()}))}
 $('openMsgs').addEventListener('click',()=>{markTexted();setTimeout(closeSheet,300)});

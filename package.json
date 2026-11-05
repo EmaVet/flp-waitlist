@@ -1,0 +1,9 @@
+{
+  "name": "flp-waitlist",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Five Little Pigs shared waitlist",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" }
+}

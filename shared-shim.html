@@ -1,0 +1,87 @@
+<style>
+.pin-wrap{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px max(16px,env(safe-area-inset-left,0px))}
+.pin-card{width:100%;max-width:340px;display:flex;flex-direction:column;gap:14px;text-align:center}
+.pin-card img{width:72px;margin:0 auto;filter:var(--logo-filter)}
+.pin-card h2{font:800 24px var(--display);margin:0;color:var(--ink);letter-spacing:0;text-transform:none;display:block}
+.pin-card p{margin:0;color:var(--muted);font-size:15px}
+.pin-card input{font:800 28px var(--display);text-align:center;letter-spacing:.3em;padding:14px}
+.pin-err{color:var(--late);font-weight:600;font-size:15px;min-height:1.2em}
+.net{position:fixed;left:0;right:0;top:0;z-index:40;background:var(--late);color:var(--surface);text-align:center;font:600 14px var(--body);padding:calc(6px + env(safe-area-inset-top,0px)) 16px 6px}
+</style>
+<div class="pin-wrap" id="pinWrap" hidden>
+  <form class="pin-card" id="pinForm" autocomplete="off">
+    <img alt="" src="icon.png">
+    <h2>Staff PIN</h2>
+    <p>Enter the cafe's PIN to open the waitlist. You only need to do this once on each device.</p>
+    <input id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="12" aria-label="Staff PIN">
+    <div class="pin-err" id="pinErr" role="alert"></div>
+    <button class="btn primary" type="submit" id="pinBtn">Open waitlist</button>
+  </form>
+</div>
+<div class="net" id="net" hidden>Can't reach the waitlist. Check the wifi or mobile data. Changes will show once it reconnects.</div>
+<script>
+/* Shared mode: the list lives on the cafe's server, so every device sees the same guests. */
+(function(){
+  const PIN_KEY='flp-pin';
+  let pin=null; try{pin=localStorage.getItem(PIN_KEY)}catch(e){}
+  let state={guests:{},reports:{},settings:{}}, rev=-1, listeners=[], fails=0, loaded=false;
+  const clone=o=>JSON.parse(JSON.stringify(o));
+  const el=id=>document.getElementById(id);
+  function snapDoc(id,d){return {id,exists:!!d,data:()=>d,metadata:{fromCache:false,hasPendingWrites:false}}}
+  function notify(){listeners.forEach(f=>{try{f()}catch(e){console.error(e)}})}
+  function setNet(ok){const n=el('net');if(n)n.hidden=ok}
+  function askPin(wrong){
+    const w=el('pinWrap'); if(!w) return;
+    w.hidden=false; el('pinErr').textContent=wrong?'That PIN didn’t work. Try again.':'';
+    setTimeout(()=>{try{el('pinInput').focus()}catch(e){}},50);
+  }
+  async function api(path,opts){
+    const r=await fetch(path,Object.assign({cache:'no-store'},opts||{},{headers:{'content-type':'application/json','x-pin':pin||''}}));
+    if(r.status===401){pin=null;try{localStorage.removeItem(PIN_KEY)}catch(e){}askPin(true);throw {code:'unauth'}}
+    if(r.status===429){const j=await r.json().catch(()=>({}));el('pinWrap').hidden=false;el('pinErr').textContent=j.error||'Too many tries. Wait 5 minutes.';throw {code:'locked'}}
+    if(r.status===400) throw {code:'invalid_argument'};
+    if(!r.ok) throw {code:'unavailable'};
+    return r.json();
+  }
+  function take(j){if(j&&j.data){state=j.data;rev=j.rev;loaded=true;notify()}}
+  async function poll(){
+    if(!pin) return;
+    try{const j=await api('/api/state?rev='+rev); if(!j.unchanged) take(j); fails=0; setNet(true)}
+    catch(e){ if(e&&e.code==='unavailable'||e instanceof TypeError){ if(++fails>=2) setNet(false) } }
+  }
+  setInterval(poll,2500);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll()});
+  window.addEventListener('online',poll);
+
+  async function sendOp(o){const j=await api('/api/op',{method:'POST',body:JSON.stringify(o)});take(j)}
+  const col=c=>(state[c]=state[c]||{});
+  function docRef(c,id){
+    return {id,
+      async set(d){col(c)[id]=clone(d);notify();await sendOp({op:'set',col:c,id,data:d})},
+      async update(d){if(!col(c)[id])throw {code:'invalid_argument'};Object.assign(col(c)[id],clone(d));notify();await sendOp({op:'update',col:c,id,data:d})},
+      async delete(){delete col(c)[id];notify();await sendOp({op:'delete',col:c,id})},
+      onSnapshot(next){const f=()=>next(snapDoc(id,col(c)[id]));listeners.push(f);if(loaded)setTimeout(f,0);return()=>{}}
+    }}
+  function colRef(c){
+    return {
+      doc(id){return docRef(c,id||Date.now().toString(36)+Math.random().toString(36).slice(2,7))},
+      async add(d){const r=this.doc();await r.set(d);return r},
+      onSnapshot(next){const f=()=>{const o=col(c);const docs=Object.keys(o).map(k=>snapDoc(k,o[k]));next({docs,size:docs.length,empty:!docs.length,metadata:{fromCache:false,hasPendingWrites:false},docChanges:()=>[]})};listeners.push(f);if(loaded)setTimeout(f,0);return()=>{}}
+    }}
+  const db={collection:colRef,doc(p){const [c,id]=p.split('/');return docRef(c,id)}};
+  window.claude={use:async name=>name==='db'?db:null};
+
+  document.addEventListener('DOMContentLoaded',()=>{
+    el('pinForm').addEventListener('submit',async e=>{
+      e.preventDefault();
+      const v=el('pinInput').value.trim(); if(!v) return;
+      el('pinBtn').disabled=true; el('pinErr').textContent='';
+      pin=v;
+      try{await api('/api/check');try{localStorage.setItem(PIN_KEY,v)}catch(_e){}el('pinWrap').hidden=true;el('pinInput').value='';await poll()}
+      catch(err){if(err&&err.code==='unavailable'||err instanceof TypeError)el('pinErr').textContent='Can’t reach the waitlist. Check the connection.'}
+      el('pinBtn').disabled=false;
+    });
+    if(!pin) askPin(false); else poll();
+  });
+})();
+</script>
