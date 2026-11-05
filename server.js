@@ -168,9 +168,7 @@ const server = http.createServer(async (req, res) => {
 function shutdown(sig) {
   console.log(sig, 'received, saving and shutting down');
   try { save(); } catch (e) { console.error('save failed', e); }
-  server.close(() => process.exit(0));
-  if (server.closeAllConnections) server.closeAllConnections();
-  setTimeout(() => process.exit(0), 3000).unref();
+  process.exit(0); // every change is already written to disk as it happens
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
