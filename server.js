@@ -125,7 +125,7 @@ function serveStatic(req, res) {
   });
 }
 
-http.createServer(async (req, res) => {
+const server = http.createServer(async (req, res) => {
   const url = req.url.split('?')[0];
   if (url === '/health') return send(res, 200, { ok: true });
   if (!url.startsWith('/api/')) return serveStatic(req, res);
@@ -163,3 +163,14 @@ http.createServer(async (req, res) => {
     return send(res, 400, { error: 'bad request' });
   }
 }).listen(PORT, () => console.log('Waitlist listening on', PORT));
+
+// Railway sends SIGTERM when it swaps in a new version. Save and exit cleanly so it isn't reported as a crash.
+function shutdown(sig) {
+  console.log(sig, 'received, saving and shutting down');
+  try { save(); } catch (e) { console.error('save failed', e); }
+  server.close(() => process.exit(0));
+  if (server.closeAllConnections) server.closeAllConnections();
+  setTimeout(() => process.exit(0), 3000).unref();
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
