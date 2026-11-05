@@ -113,6 +113,10 @@ h2{font:700 13px var(--body);letter-spacing:.1em;text-transform:uppercase;color:
 .added{background:var(--pink-soft);color:var(--ink);border:1px solid var(--rose);border-radius:12px;padding:12px 14px;font-weight:700;font-size:16px;text-align:center}
 .added::before{content:"\2713  ";color:var(--rose)}
 @media (max-width:520px){.guest{grid-template-columns:auto minmax(0,1fr)}.guest>div:nth-child(3){grid-column:2}}
+.nonum{background:var(--warn-soft);border:1px solid var(--warn);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;font-size:15px}
+.nonum .btn{flex:1 1 auto}
+.phoneerr{color:var(--late);font-weight:600;font-size:15px}
+.nophone{font-weight:700;color:var(--warn)}
 .guest.new{box-shadow:0 0 0 3px var(--rose)}
 @media (prefers-reduced-motion:no-preference){.toast{animation:pop .2s ease-out}@keyframes pop{from{transform:translate(-50%,12px);opacity:0}}}
 .bigparty{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
@@ -164,7 +168,7 @@ window.addEventListener('error',function(e){var s=document.getElementById('statu
   <section class="panel">
     <form class="add" id="addForm" autocomplete="off">
       <label>Name<input id="fName" required placeholder="Sarah"></label>
-      <label>Mobile<input id="fPhone" required inputmode="tel" placeholder="0412 345 678"></label>
+      <label>Mobile<input id="fPhone" inputmode="tel" placeholder="0412 345 678"></label>
       <div class="full">
         <label style="margin-bottom:6px">Party size</label>
         <div class="row" id="partyChips"></div>
@@ -180,6 +184,11 @@ window.addEventListener('error',function(e){var s=document.getElementById('statu
       </div>
       <label class="full">Note<input id="fNote" placeholder="Outside OK, high chair, etc. (optional)"></label>
       <button class="btn ink full" id="addBtn" type="submit">Add to waitlist</button>
+      <div class="nonum full" id="noNum" hidden>
+        <div><b>No mobile number.</b> You won’t be able to text or call this guest, so you’ll need to call their name out when their table is ready.</div>
+        <div class="row"><button type="button" class="btn ink sm" id="noNumYes">Continue without number</button><button type="button" class="btn ghost sm" id="noNumNo">Add a number</button></div>
+      </div>
+      <div class="phoneerr full" id="phoneErr" role="alert" hidden></div>
       <div class="added full" id="added" role="status" aria-live="polite" hidden></div>
     </form>
   </section>
@@ -238,7 +247,7 @@ window.addEventListener('error',function(e){var s=document.getElementById('statu
   <form class="sheet" id="editForm" role="dialog" aria-modal="true" aria-labelledby="editTitle" autocomplete="off">
     <h3 id="editTitle">Edit guest</h3>
     <label>Name<input id="eName" required></label>
-    <label>Mobile<input id="ePhone" required inputmode="tel"></label>
+    <label>Mobile<input id="ePhone" inputmode="tel" placeholder="Leave blank if they don’t have one"></label>
     <div><label style="margin-bottom:6px">Party size</label>
       <div class="stepper"><button type="button" class="chip" id="eMinus" aria-label="One fewer">−</button><input id="eParty" inputmode="numeric" aria-label="Party size"><button type="button" class="chip" id="ePlus" aria-label="One more">+</button></div></div>
     <div><label style="margin-bottom:6px">Seating</label><div class="row" id="eSeatChips"></div></div>
@@ -332,13 +341,26 @@ const drawQuote=()=>chips($('quoteChips'),[10,15,20,30,45,60],()=>quote,v=>quote
 drawQuote();
 
 function normPhone(p){
-  let s=(p||'').replace(/[^\d+]/g,'');
-  if(s.startsWith('0')) s='+61'+s.slice(1);
-  else if(s.startsWith('61')) s='+'+s;
+  let s=(p||'').trim().replace(/[^\d+]/g,'').replace(/(?!^)\+/g,'');
+  if(s.startsWith('00')) s='+'+s.slice(2);              /* 0044... -> +44... */
+  else if(s.startsWith('0')) s='+61'+s.slice(1);        /* 0412... -> +61412... */
+  else if(/^61\d{9}$/.test(s)) s='+'+s;                  /* 61412... -> +61412... */
   return s;
 }
+/* '' = no number; otherwise an error message, or null if it's fine */
+function phoneProblem(raw){
+  const s=normPhone(raw);
+  if(!s) return '';
+  if(!s.startsWith('+')) return 'For an overseas number, start with + and the country code, e.g. +44 7700 900123.';
+  const d=s.slice(1);
+  if(s.startsWith('+61')){ if(d.length!==11) return 'That doesn\u2019t look like an Australian number (mobiles are 10 digits, e.g. 0412 345 678). If it\u2019s overseas, start with + and the country code, e.g. +44.'; return null }
+  if(d.length<8||d.length>15) return 'That number doesn\u2019t look right. Check the digits and the country code.';
+  return null;
+}
 function prettyPhone(s){
+  if(!s) return 'No number';
   if(/^\+614\d{8}$/.test(s)) return '0'+s.slice(3,6)+' '+s.slice(6,9)+' '+s.slice(9);
+  if(/^\+61[2378]\d{8}$/.test(s)) return '(0'+s.slice(3,4)+') '+s.slice(4,8)+' '+s.slice(8);
   return s;
 }
 function fill(t,g){return t.replace(/\{name\}/g,(g.name||'').split(' ')[0]).replace(/\{party\}/g,g.party)}
@@ -467,7 +489,7 @@ function render(){
       const due=g.addedAt+(g.quote||0)*60000;
       el.innerHTML=`<div class="party"><div><b>${esc(g.party)}</b><small>pax</small></div></div>
         <div class="who"><div class="name">${esc(g.name)}${g.seat&&g.seat!=='Either'?` <span class="seat${g.seat==='Outside'?' out':''}">${esc(g.seat)}</span>`:''}${g.table?` <span class="tbl">Table ${esc(g.table)}</span>`:''}</div>
-        <div class="meta">${esc(prettyPhone(g.phone))} · in ${clock(g.addedAt)} · quoted ${g.quote} min (${clock(due)})</div>
+        <div class="meta">${g.phone?esc(prettyPhone(g.phone)):'<span class="nophone">No number \u00b7 call their name</span>'} · in ${clock(g.addedAt)} · quoted ${g.quote} min (${clock(due)})</div>
         ${g.note?`<div class="note">${esc(g.note)}</div>`:''}</div>
         <div>${badge}</div><div class="actions"></div>`;
       const a=el.querySelector('.actions');
@@ -479,9 +501,9 @@ function render(){
       ti.addEventListener('blur',()=>setTimeout(render,0));
       tl.appendChild(ti);a.appendChild(tl);
       const add=(label,cls,fn)=>{const b=document.createElement('button');b.type='button';b.className='btn sm '+cls;b.textContent=label;b.disabled=!canWrite;b.onclick=fn;a.appendChild(b)};
-      if(g.status==='waiting') add('Table ready · text','primary',()=>openSheet(g));
-      if(g.status==='notified'||g.status==='passed'){add('Replied?','go',()=>setStatus(g,'coming'));add('Text again','soft',()=>openSheet(g))}
-      if(g.status!=='coming'){const c=document.createElement('a');c.className='btn sm call';c.href='tel:'+g.phone;c.textContent='Call';c.setAttribute('aria-label','Call '+g.name+' on '+prettyPhone(g.phone));a.appendChild(c)}
+      if(g.status==='waiting') g.phone?add('Table ready · text','primary',()=>openSheet(g)):add('Table ready · called out','primary',()=>write(()=>db.collection('guests').doc(g.id).update({status:'notified',notifiedAt:Date.now()})));
+      if(g.status==='notified'||g.status==='passed'){add(g.phone?'Replied?':'Found them','go',()=>setStatus(g,'coming'));if(g.phone)add('Text again','soft',()=>openSheet(g))}
+      if(g.status!=='coming'&&g.phone){const c=document.createElement('a');c.className='btn sm call';c.href='tel:'+g.phone;c.textContent='Call';c.setAttribute('aria-label','Call '+g.name+' on '+prettyPhone(g.phone));a.appendChild(c)}
       add('Seated','ink',()=>setStatus(g,'seated'));
       if(g.status==='notified'){const over=g.notifiedAt+REPLY_MS<now;add(over?'No reply, pass on':'Pass on',over?'pass strong':'pass',()=>passOn(g))}
       add('Edit','ghost',()=>openEdit(g));
@@ -513,10 +535,19 @@ function setStatus(g,status){
   write(()=>db.collection('guests').doc(g.id).update(patch));
 }
 
+let noNumOK=false;
+$('noNumYes').onclick=()=>{noNumOK=true;$('noNum').hidden=true;$('addForm').requestSubmit?$('addForm').requestSubmit():$('addBtn').click()};
+$('noNumNo').onclick=()=>{$('noNum').hidden=true;$('fPhone').focus()};
+$('fPhone').addEventListener('input',()=>{$('noNum').hidden=true;$('phoneErr').hidden=true});
 $('addForm').addEventListener('submit',async e=>{
   e.preventDefault();
-  const name=$('fName').value.trim(), phone=normPhone($('fPhone').value);
-  if(!name||phone.replace(/\D/g,'').length<8){showStatus('Add a name and a full mobile number.');return}
+  const name=$('fName').value.trim(), raw=$('fPhone').value, phone=normPhone(raw);
+  $('phoneErr').hidden=true;
+  if(!name){$('phoneErr').textContent='Add the guest\u2019s name.';$('phoneErr').hidden=false;$('fName').focus();return}
+  const prob=phoneProblem(raw);
+  if(prob===''&&!noNumOK){$('noNum').hidden=false;return}
+  if(prob){$('phoneErr').textContent=prob;$('phoneErr').hidden=false;return}
+  $('noNum').hidden=true; noNumOK=false;
   showStatus('');
   $('addBtn').disabled=true;
   let ref=null;
@@ -544,7 +575,7 @@ function closeSheet(){$('sheetBg').hidden=true;sheetGuest=null}
 let editGuest=null, eSeat='Either';
 const drawESeat=()=>chips($('eSeatChips'),['Inside','Outside','Either'],()=>eSeat,v=>eSeat=v,String);
 function openEdit(g){
-  editGuest=g; $('eName').value=g.name||''; $('ePhone').value=prettyPhone(g.phone); $('eParty').value=g.party||2;
+  editGuest=g; $('eName').value=g.name||''; $('ePhone').value=g.phone?prettyPhone(g.phone):''; $('eParty').value=g.party||2;
   eSeat=g.seat||'Either'; drawESeat(); $('eNote').value=g.note||''; $('eErr').textContent=''; $('editBg').hidden=false;
 }
 function closeEdit(){$('editBg').hidden=true;editGuest=null}
@@ -555,7 +586,9 @@ $('editBg').addEventListener('click',e=>{if(e.target===$('editBg'))closeEdit()})
 $('editForm').addEventListener('submit',async e=>{
   e.preventDefault(); if(!editGuest) return;
   const name=$('eName').value.trim(), phone=normPhone($('ePhone').value);
-  if(!name||phone.replace(/\D/g,'').length<8){$('eErr').textContent='Add a name and a full mobile number.';return}
+  if(!name){$('eErr').textContent='Add the guest\u2019s name.';return}
+  const prob=phoneProblem($('ePhone').value);
+  if(prob){$('eErr').textContent=prob;return}
   const g=editGuest, patch={name,phone,party:clampBig($('eParty').value),seat:eSeat,note:$('eNote').value.trim()};
   closeEdit();
   if(await write(()=>db.collection('guests').doc(g.id).update(patch))) toast(name+' updated');
