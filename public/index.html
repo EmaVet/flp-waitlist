@@ -354,7 +354,7 @@ window.addEventListener('error',function(e){var s=document.getElementById('statu
 </script>
 
 <script>
-const DEFAULT_TPL = "Hi {name}, it's Five Little Pigs! Your table for {party} is ready. Please reply within 5 minutes to let us know you're on your way, otherwise we'll pass it to the next guest. Thanks!";
+const DEFAULT_TPL = "Hi {name}, it's 5 Little Pigs, the cafe in Huskisson. Your table for {party} is ready! Please reply within 5 minutes to let us know you're on your way, otherwise we'll pass it to the next guest. Thanks!\n\nFollow us on Instagram: https://www.instagram.com/5littlepigs/";
 const REPLY_MS = 5*60*1000;
 let db=null, canWrite=true, guests=[], template=DEFAULT_TPL, party=2, quote=10, seat='Either', sheetGuest=null, justAdded=null, toastTimer=null, past=[], mcp=null;
 const REPORT_TO='5littlepigshuskisson@gmail.com';
