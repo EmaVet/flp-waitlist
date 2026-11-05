@@ -89,14 +89,19 @@ function closeDay(source) {
   return r;
 }
 // Auto close at CLOSE_HOUR Melbourne time, once a day, if anyone is on the list.
-setInterval(() => {
+function autoClose() {
   const now = melb(Date.now());
+  // Anything left over from a previous day (e.g. added after closing) is cleared in the morning.
+  const stale = Object.values(db.guests).some(g => g.addedAt && melb(g.addedAt).key !== now.key);
+  if (stale && now.hour < CLOSE_HOUR) { const r = closeDay('auto'); console.log('Cleared leftovers from', r && r.key); return; }
   if (now.hour >= CLOSE_HOUR && db.lastAutoClose !== now.key) {
     db.lastAutoClose = now.key;
     if (Object.keys(db.guests).length) { const r = closeDay('auto'); console.log('Auto close', now.key, r && r.parties, 'parties'); }
     else save();
   }
-}, 60000);
+}
+setInterval(autoClose, 60000);
+setTimeout(autoClose, 2000);
 
 // ---- http ----
 function send(res, code, obj, headers) {
