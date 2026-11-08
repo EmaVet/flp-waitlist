@@ -117,6 +117,7 @@ h2{font:700 13px var(--body);letter-spacing:.1em;text-transform:uppercase;color:
 .nonum .btn{flex:1 1 auto}
 .phoneerr{color:var(--late);font-weight:600;font-size:15px}
 .nophone{font-weight:700;color:var(--warn)}
+.btn.danger{background:var(--late);color:var(--surface);border:1px solid var(--late)}
 .guest.new{box-shadow:0 0 0 3px var(--rose)}
 @media (prefers-reduced-motion:no-preference){.toast{animation:pop .2s ease-out}@keyframes pop{from{transform:translate(-50%,12px);opacity:0}}}
 .bigparty{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
@@ -128,10 +129,23 @@ h2{font:700 13px var(--body);letter-spacing:.1em;text-transform:uppercase;color:
 .guest.outside{border-left:6px solid var(--rose)}
 .tbl{font:700 13px var(--body);background:var(--ink);color:var(--bg);border-radius:999px;padding:3px 9px;vertical-align:middle;white-space:nowrap;font-variant-numeric:tabular-nums}
 .tblin{display:flex;flex-direction:row;align-items:center;gap:6px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);flex:0 0 auto}
-.tblin input{width:64px;padding:8px 8px;font:700 17px var(--body);text-align:center;border-radius:10px;font-variant-numeric:tabular-nums}
+.tblin input{width:86px;padding:8px 6px;text-transform:uppercase;font:700 17px var(--body);text-align:center;border-radius:10px;font-variant-numeric:tabular-nums}
 .empty{text-align:center;color:var(--muted);padding:28px 16px;border:1px dashed var(--line);border-radius:16px}
 details summary{cursor:pointer;color:var(--muted);font-weight:600;padding:6px 0}
 .done{display:flex;justify-content:space-between;gap:10px;padding:10px 2px;border-bottom:1px solid var(--line);font-size:15px}
+.doneitem{border-bottom:1px solid var(--line);padding:2px 2px}
+.doneitem summary{display:flex;justify-content:space-between;gap:10px;align-items:baseline;padding:10px 0;color:var(--ink);font-weight:600;list-style:none}
+.doneitem summary::-webkit-details-marker{display:none}
+.doneitem summary::after{content:"\203A";color:var(--muted);font-size:20px;line-height:1;transition:transform .15s}
+.doneitem[open] summary::after{transform:rotate(90deg)}
+.doneitem .dn{flex:1;min-width:0;overflow-wrap:anywhere}
+.doneitem .dn small{color:var(--muted);font-weight:500;font-size:14px}
+.doneitem .ds{color:var(--muted);font-weight:500;font-size:14px;white-space:nowrap}
+.doneitem.s-left .ds{color:var(--late)}
+.doneitem.s-seated .ds{color:var(--go)}
+.doneitem .rep{margin:2px 0 10px;font-size:15px}
+.doneitem .rep a{color:var(--rose);font-weight:700}
+.doneacts{padding-bottom:12px}
 .done span:last-child{color:var(--muted);white-space:nowrap}
 .note-line{font-size:13px;color:var(--muted)}
 .notice{background:var(--warn-soft);color:var(--ink);border-radius:12px;padding:10px 12px;font-size:14px}
@@ -207,7 +221,8 @@ window.addEventListener('error',function(e){var s=document.getElementById('statu
 
   <section>
     <details id="doneBox">
-      <summary id="doneSummary">Seated & cleared today (0)</summary>
+      <summary id="doneSummary">Seated &amp; cleared today (0)</summary>
+      <div class="note-line" style="margin:2px 0 6px">Tap a name to see their details, call them, or put them back on the list.</div>
       <div id="doneList"></div>
     </details>
   </section>
@@ -494,8 +509,8 @@ function render(){
         <div>${badge}</div><div class="actions"></div>`;
       const a=el.querySelector('.actions');
       const tl=document.createElement('label');tl.className='tblin';tl.textContent='Table';
-      const ti=document.createElement('input');ti.className='tblin-input';ti.id='tbl-'+g.id;ti.inputMode='numeric';ti.autocomplete='off';ti.placeholder='#';ti.value=g.table||'';ti.disabled=!canWrite;
-      const saveTbl=()=>{const v=ti.value.trim();if(v!==(g.table||'')){write(()=>db.collection('guests').doc(g.id).update({table:v}))}};
+      const ti=document.createElement('input');ti.className='tblin-input';ti.id='tbl-'+g.id;ti.inputMode='text';ti.autocomplete='off';ti.setAttribute('autocapitalize','characters');ti.setAttribute('autocorrect','off');ti.spellcheck=false;ti.maxLength=12;ti.placeholder='#';ti.value=g.table||'';ti.disabled=!canWrite;
+      const saveTbl=()=>{const v=ti.value.trim().toUpperCase().replace(/\s+/g,'');ti.value=v;if(v!==(g.table||'')){write(()=>db.collection('guests').doc(g.id).update({table:v}))}};
       ti.addEventListener('change',saveTbl);
       ti.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();ti.blur()}});
       ti.addEventListener('blur',()=>setTimeout(render,0));
@@ -507,14 +522,38 @@ function render(){
       add('Seated','ink',()=>setStatus(g,'seated'));
       if(g.status==='notified'){const over=g.notifiedAt+REPLY_MS<now;add(over?'No reply, pass on':'Pass on',over?'pass strong':'pass',()=>passOn(g))}
       add('Edit','ghost',()=>openEdit(g));
-      add('Remove','ghost',()=>setStatus(g,'left'));
+      const armed=armedRemove===g.id&&Date.now()<armedUntil;
+      add(armed?'Tap again to remove':'Remove',armed?'danger':'ghost',()=>{
+        if(armedRemove===g.id&&Date.now()<armedUntil){armedRemove=null;setStatus(g,'left');toast(g.name+' removed \u00b7 find them under Seated & cleared to put them back');return}
+        armedRemove=g.id;armedUntil=Date.now()+4000;render();
+        setTimeout(()=>{if(armedRemove===g.id&&Date.now()>=armedUntil){armedRemove=null;render()}},4100);
+      });
       list.appendChild(el);
     });
   }
   renderReport();
   $('doneSummary').textContent=`Seated & cleared today (${done.length})`;
   const labels={seated:'Seated',noshow:'No reply',left:'Removed'};
-  $('doneList').innerHTML=done.map(g=>`<div class="done"><span>${esc(g.name)} · ${esc(g.party)} pax${g.table?' · table '+esc(g.table):''}</span><span>${labels[g.status]||g.status} ${g.doneAt?clock(g.doneAt):''}${g.status==='seated'&&g.doneAt?' · waited '+waitStr(g.doneAt-g.addedAt)+' (quoted '+g.quote+')':''}</span></div>`).join('')||'<div class="note-line" style="padding:8px 0">Nothing yet.</div>';
+  const row=(k,v)=>v?`<dt>${k}</dt><dd>${v}</dd>`:'';
+  $('doneList').innerHTML=done.map(g=>{
+    const phone=g.phone?`<a href="tel:${esc(g.phone)}">${esc(prettyPhone(g.phone))}</a>`:'<span class="nophone">No number</span>';
+    return `<details class="doneitem s-${esc(g.status)}" data-id="${esc(g.id)}"${openDone.has(g.id)?' open':''}>
+      <summary><span class="dn">${esc(g.name)} <small>${esc(g.party)} pax${g.table?' \u00b7 table '+esc(g.table):''}</small></span><span class="ds">${labels[g.status]||esc(g.status)} ${g.doneAt?clock(g.doneAt):''}</span></summary>
+      <dl class="rep">
+        ${row('Mobile',phone)}
+        ${row('Party size',esc(g.party))}
+        ${row('Seating',esc(g.seat||'Either'))}
+        ${row('Table',esc(g.table||''))}
+        ${row('Note',esc(g.note||''))}
+        ${row('Added',clock(g.addedAt))}
+        ${row('Quoted wait',g.quote?g.quote+' min':'')}
+        ${row('Texted',g.notifiedAt?clock(g.notifiedAt):'')}
+        ${row('Passed over',g.passedCount?String(g.passedCount)+(g.passedCount>1?' times':' time'):'')}
+        ${row(labels[g.status]||'Done',g.doneAt?clock(g.doneAt):'')}
+        ${row('Actual wait',g.status==='seated'&&g.doneAt?waitStr(g.doneAt-g.addedAt):'')}
+      </dl>
+      <div class="row doneacts">${g.phone?`<a class="btn sm call" href="tel:${esc(g.phone)}">Call</a>`:''}<button type="button" class="btn sm soft" data-restore="${esc(g.id)}"${canWrite?'':' disabled'}>Put back on the list</button></div>
+    </details>`}).join('')||'<div class="note-line" style="padding:8px 0">Nothing yet.</div>';
 }
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 setInterval(()=>{if(guests.some(g=>g.status==='notified'||g.status==='waiting'))render()},1000);
@@ -529,6 +568,16 @@ async function write(fn){
     return false;
   }
 }
+let armedRemove=null, armedUntil=0;
+const openDone=new Set();
+$('doneList').addEventListener('toggle',e=>{const d=e.target;if(!d.dataset||!d.dataset.id)return;d.open?openDone.add(d.dataset.id):openDone.delete(d.dataset.id)},true);
+$('doneList').addEventListener('click',e=>{
+  const b=e.target.closest('[data-restore]'); if(!b) return;
+  const g=guests.find(x=>x.id===b.dataset.restore); if(!g) return;
+  openDone.delete(g.id);
+  write(()=>db.collection('guests').doc(g.id).update({status:'waiting',doneAt:null,notifiedAt:null}));
+  toast(g.name+' is back on the list');
+});
 function setStatus(g,status){
   const patch={status};
   if(['seated','noshow','left'].includes(status)) patch.doneAt=Date.now();
