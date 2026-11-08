@@ -117,6 +117,12 @@ h2{font:700 13px var(--body);letter-spacing:.1em;text-transform:uppercase;color:
 .nonum .btn{flex:1 1 auto}
 .phoneerr{color:var(--late);font-weight:600;font-size:15px}
 .nophone{font-weight:700;color:var(--warn)}
+.sheet.rm{text-align:center;align-items:stretch}
+.rm-icon{width:52px;height:52px;border-radius:50%;background:var(--late-soft);color:var(--late);font:800 28px var(--display);display:grid;place-items:center;margin:0 auto}
+.sheet.rm h3{font-size:26px;overflow-wrap:anywhere}
+.sheet.rm #rmInfo{font-size:17px;font-weight:600;margin:0;font-variant-numeric:tabular-nums}
+.rm-ph{color:var(--muted);font-weight:500}
+.btn.big{min-height:56px;font-size:18px}
 .btn.danger{background:var(--late);color:var(--surface);border:1px solid var(--late)}
 .guest.new{box-shadow:0 0 0 3px var(--rose)}
 @media (prefers-reduced-motion:no-preference){.toast{animation:pop .2s ease-out}@keyframes pop{from{transform:translate(-50%,12px);opacity:0}}}
@@ -257,6 +263,17 @@ window.addEventListener('error',function(e){var s=document.getElementById('statu
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<div class="sheet-bg" id="removeBg" hidden>
+  <div class="sheet rm" role="alertdialog" aria-modal="true" aria-labelledby="rmTitle" aria-describedby="rmInfo">
+    <div class="rm-icon" aria-hidden="true">!</div>
+    <h3 id="rmTitle">Remove guest?</h3>
+    <p id="rmInfo"></p>
+    <p class="note-line">They’ll move to Seated &amp; cleared, where you can put them back if needed.</p>
+    <button class="btn danger big" type="button" id="rmYes">Yes, remove</button>
+    <button class="btn ghost big" type="button" id="rmCancel">No, keep them</button>
+  </div>
+</div>
 
 <div class="sheet-bg" id="editBg" hidden>
   <form class="sheet" id="editForm" role="dialog" aria-modal="true" aria-labelledby="editTitle" autocomplete="off">
@@ -574,12 +591,7 @@ function render(){
       add('Seated','ink',()=>setStatus(g,'seated'));
       if(g.status==='notified'){const over=g.notifiedAt+REPLY_MS<now;add(over?'No reply, pass on':'Pass on',over?'pass strong':'pass',()=>passOn(g))}
       add('Edit','ghost',()=>openEdit(g));
-      const armed=armedRemove===g.id&&Date.now()<armedUntil;
-      add(armed?'Tap again to remove':'Remove',armed?'danger':'ghost',()=>{
-        if(armedRemove===g.id&&Date.now()<armedUntil){armedRemove=null;setStatus(g,'left');toast(g.name+' removed \u00b7 find them under Seated & cleared to put them back');return}
-        armedRemove=g.id;armedUntil=Date.now()+4000;render();
-        setTimeout(()=>{if(armedRemove===g.id&&Date.now()>=armedUntil){armedRemove=null;render()}},4100);
-      });
+      add('Remove','ghost',()=>openRemove(g));
       list.appendChild(el);
     });
   }
@@ -620,7 +632,24 @@ async function write(fn){
     return false;
   }
 }
-let armedRemove=null, armedUntil=0;
+let removeGuest=null, removeOpenedAt=0;
+function openRemove(g){
+  removeGuest=g; removeOpenedAt=Date.now();
+  $('rmTitle').textContent='Remove '+g.name+'?';
+  const bits=[g.party+(+g.party===1?' person':' people')];
+  if(g.table) bits.push('table '+g.table);
+  if(g.seat&&g.seat!=='Either') bits.push(g.seat.toLowerCase());
+  $('rmInfo').innerHTML=esc(bits.join(' \u00b7 '))+'<br><span class="rm-ph">'+esc(g.phone?prettyPhone(g.phone):'No number')+'</span>';
+  $('removeBg').hidden=false;
+}
+function closeRemove(){$('removeBg').hidden=true;removeGuest=null}
+$('rmCancel').onclick=closeRemove;
+$('removeBg').addEventListener('click',e=>{if(e.target===$('removeBg'))closeRemove()});
+$('rmYes').onclick=()=>{
+  if(!removeGuest||Date.now()-removeOpenedAt<500) return; /* ignore a double tap carrying through */
+  const g=removeGuest; closeRemove(); setStatus(g,'left');
+  toast(g.name+' removed \u00b7 find them under Seated & cleared to put them back');
+};
 const openDone=new Set();
 $('doneList').addEventListener('toggle',e=>{const d=e.target;if(!d.dataset||!d.dataset.id)return;d.open?openDone.add(d.dataset.id):openDone.delete(d.dataset.id)},true);
 $('doneList').addEventListener('click',e=>{
