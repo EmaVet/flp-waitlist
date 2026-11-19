@@ -124,6 +124,7 @@ h2{font:700 13px var(--body);letter-spacing:.1em;text-transform:uppercase;color:
 .rm-ph{color:var(--muted);font-weight:500}
 .btn.big{min-height:56px;font-size:18px}
 .btn.danger{background:var(--late);color:var(--surface);border:1px solid var(--late)}
+.who .called{font-size:14px;font-weight:700;color:var(--warn);margin-top:2px}
 .guest.new{box-shadow:0 0 0 3px var(--rose)}
 @media (prefers-reduced-motion:no-preference){.toast{animation:pop .2s ease-out}@keyframes pop{from{transform:translate(-50%,12px);opacity:0}}}
 .bigparty{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
@@ -213,16 +214,16 @@ window.addEventListener('error',function(e){var s=document.getElementById('statu
     </form>
   </section>
 
-  <section>
-    <h2><span>Waiting now</span></h2>
-    <div class="list" id="list"><div class="empty">Loading the list…</div></div>
-  </section>
-
   <section class="stats" aria-label="Today so far">
     <div class="stat"><b id="sWaiting">0</b><span>Waiting</span></div>
     <div class="stat"><b id="sCovers">0</b><span>Covers</span></div>
-    <div class="stat"><b id="sTexted">0</b><span>Texted</span></div>
+    <div class="stat"><b id="sTexted">0</b><span>Contacted</span></div>
     <div class="stat"><b id="sAvg">–</b><span>Avg wait</span></div>
+  </section>
+
+  <section>
+    <h2><span>Waiting now</span></h2>
+    <div class="list" id="list"><div class="empty">Loading the list…</div></div>
   </section>
 
   <section>
@@ -562,7 +563,7 @@ function render(){
       let cls='guest', badge='<span class="badge b-wait">Waiting '+ago(now-g.addedAt)+'</span>';
       if(g.status==='notified'){
         const left=g.notifiedAt+REPLY_MS-now;
-        if(left>0){const s=Math.ceil(left/1000);cls+=' notified';badge='<span class="badge b-notified">Texted · '+Math.floor(s/60)+':'+String(s%60).padStart(2,'0')+'</span>'}
+        if(left>0){const s=Math.ceil(left/1000);cls+=' notified';badge='<span class="badge b-notified">'+contactLabel(g)+' · '+Math.floor(s/60)+':'+String(s%60).padStart(2,'0')+'</span>'}
         else{cls+=' late';badge='<span class="badge b-late">No reply · '+ago(now-g.notifiedAt-REPLY_MS)+' over</span>'}
       }
       if(g.status==='passed'){cls+=' passed';badge='<span class="badge b-passed">Passed over'+(g.passedCount>1?' \u00d7'+g.passedCount:'')+'</span>'}
@@ -574,6 +575,7 @@ function render(){
       el.innerHTML=`<div class="party"><div><b>${esc(g.party)}</b><small>pax</small></div></div>
         <div class="who"><div class="name">${esc(g.name)}${g.seat&&g.seat!=='Either'?` <span class="seat${g.seat==='Outside'?' out':''}">${esc(g.seat)}</span>`:''}${g.table?` <span class="tbl">Table ${esc(g.table)}</span>`:''}</div>
         <div class="meta">${g.phone?esc(prettyPhone(g.phone)):'<span class="nophone">No number \u00b7 call their name</span>'} · in ${clock(g.addedAt)} · quoted ${g.quote} min (${clock(due)})</div>
+        ${g.calledAt?`<div class="called">\u260E Called ${clock(g.calledAt)}${g.callCount>1?' ('+g.callCount+' calls)':''}</div>`:''}
         ${g.note?`<div class="note">${esc(g.note)}</div>`:''}</div>
         <div>${badge}</div><div class="actions"></div>`;
       const a=el.querySelector('.actions');
@@ -585,9 +587,9 @@ function render(){
       ti.addEventListener('blur',()=>setTimeout(render,0));
       tl.appendChild(ti);a.appendChild(tl);
       const add=(label,cls,fn)=>{const b=document.createElement('button');b.type='button';b.className='btn sm '+cls;b.textContent=label;b.disabled=!canWrite;b.onclick=fn;a.appendChild(b)};
-      if(g.status==='waiting') g.phone?add('Table ready · text','primary',()=>openSheet(g)):add('Table ready · called out','primary',()=>write(()=>db.collection('guests').doc(g.id).update({status:'notified',notifiedAt:Date.now()})));
+      if(g.status==='waiting') g.phone?add('Table ready · text','primary',()=>openSheet(g)):add('Table ready · called out','primary',()=>write(()=>db.collection('guests').doc(g.id).update({status:'notified',notifiedAt:Date.now(),calledOutAt:Date.now()})));
       if(g.status==='notified'||g.status==='passed'){add(g.phone?'Replied?':'Found them','go',()=>setStatus(g,'coming'));if(g.phone)add('Text again','soft',()=>openSheet(g))}
-      if(g.status!=='coming'&&g.phone){const c=document.createElement('a');c.className='btn sm call';c.href='tel:'+g.phone;c.textContent='Call';c.setAttribute('aria-label','Call '+g.name+' on '+prettyPhone(g.phone));a.appendChild(c)}
+      if(g.status!=='coming'&&g.phone){const c=document.createElement('a');c.className='btn sm call';c.href='tel:'+g.phone;c.textContent='Call';c.setAttribute('aria-label','Call '+g.name+' on '+prettyPhone(g.phone));c.addEventListener('click',()=>markCalled(g));a.appendChild(c)}
       add('Seated','ink',()=>setStatus(g,'seated'));
       if(g.status==='notified'){const over=g.notifiedAt+REPLY_MS<now;add(over?'No reply, pass on':'Pass on',over?'pass strong':'pass',()=>passOn(g))}
       add('Edit','ghost',()=>openEdit(g));
@@ -611,7 +613,8 @@ function render(){
         ${row('Note',esc(g.note||''))}
         ${row('Added',clock(g.addedAt))}
         ${row('Quoted wait',g.quote?g.quote+' min':'')}
-        ${row('Texted',g.notifiedAt?clock(g.notifiedAt):'')}
+        ${row('Texted',g.textedAt?clock(g.textedAt):(g.notifiedAt&&!g.calledAt&&g.phone?clock(g.notifiedAt):''))}
+        ${row('Called',g.calledAt?clock(g.calledAt)+(g.callCount>1?' ('+g.callCount+' calls)':''):'')}
         ${row('Passed over',g.passedCount?String(g.passedCount)+(g.passedCount>1?' times':' time'):'')}
         ${row(labels[g.status]||'Done',g.doneAt?clock(g.doneAt):'')}
         ${row('Actual wait',g.status==='seated'&&g.doneAt?waitStr(g.doneAt-g.addedAt):'')}
@@ -724,7 +727,19 @@ $('editForm').addEventListener('submit',async e=>{
   if(await write(()=>db.collection('guests').doc(g.id).update(patch))) toast(name+' updated');
 });
 $('sheetMsg').addEventListener('input',()=>{if(sheetGuest)$('openMsgs').href=smsHref(sheetGuest.phone,$('sheetMsg').value)});
-function markTexted(){if(!sheetGuest)return;const g=sheetGuest;write(()=>db.collection('guests').doc(g.id).update({status:'notified',notifiedAt:Date.now()}))}
+function markTexted(){if(!sheetGuest)return;const g=sheetGuest;const t=Date.now();write(()=>db.collection('guests').doc(g.id).update({status:'notified',notifiedAt:t,textedAt:t}))}
+/* tapping Call: record it, and start the 5-minute timer if they hadn't been contacted yet */
+function markCalled(g){
+  const t=Date.now(), patch={calledAt:t,callCount:(g.callCount||0)+1};
+  if(g.status==='waiting'||g.status==='passed'){patch.status='notified';patch.notifiedAt=t}
+  write(()=>db.collection('guests').doc(g.id).update(patch));
+  toast('Calling '+g.name+' \u00b7 marked as called at '+clock(t));
+}
+function contactLabel(g){
+  if(!g.phone) return 'Called out';
+  const texted=!!g.textedAt||(!!g.notifiedAt&&!g.calledAt), called=!!g.calledAt;
+  return texted&&called?'Texted + called':called?'Called':'Texted';
+}
 $('openMsgs').addEventListener('click',()=>{markTexted();setTimeout(closeSheet,300)});
 async function copy(text,btn){
   try{await navigator.clipboard.writeText(text);const o=btn.textContent;btn.textContent='Copied';setTimeout(()=>btn.textContent=o,1400);return true}
