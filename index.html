@@ -40,7 +40,9 @@ header{display:flex;align-items:center;gap:10px}
 header img{width:44px;height:auto;filter:var(--logo-filter)}
 header h1{font:800 22px/1 var(--display);margin:0;letter-spacing:-.01em}
 header p{margin:2px 0 0;color:var(--muted);font-size:13px}
-.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:12px 8px;text-align:center}
+.stats{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,.9fr) minmax(0,1.05fr) minmax(0,1.25fr);gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:12px 8px;text-align:center}
+.stat.now b{color:var(--rose);white-space:nowrap;font-size:clamp(15px,4.6vw,20px);line-height:22px}
+.stat span{display:block;overflow-wrap:anywhere}
 .stat b{display:block;font:800 22px/1 var(--display);font-variant-numeric:tabular-nums}
 .stat span{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 
@@ -219,7 +221,7 @@ window.addEventListener('error',function(e){var s=document.getElementById('statu
     <div class="stat"><b id="sWaiting">0</b><span>Waiting</span></div>
     <div class="stat"><b id="sCovers">0</b><span>Covers</span></div>
     <div class="stat"><b id="sTexted">0</b><span>Contacted</span></div>
-    <div class="stat"><b id="sAvg">–</b><span>Avg wait</span></div>
+    <div class="stat now"><b id="sAvg">–</b><span>Wait now</span></div>
   </section>
 
   <section>
@@ -502,8 +504,7 @@ function render(){
   $('sWaiting').textContent=active.length;
   $('sCovers').textContent=active.reduce((n,g)=>n+(+g.party||0),0);
   $('sTexted').textContent=active.filter(g=>g.status==='notified').length;
-  const seated=done.filter(g=>g.status==='seated'&&g.doneAt);
-  $('sAvg').textContent=seated.length?waitStr(seated.reduce((n,g)=>n+(g.doneAt-g.addedAt),0)/seated.length):'–';
+  $('sAvg').textContent=waitNowText(active,done,now);
   const list=$('list');
   if(!active.length){list.innerHTML='<div class="empty">No one waiting. Add a guest above when the door gets busy.</div>'}
   else{
@@ -571,6 +572,26 @@ function render(){
       </dl>
       <div class="row doneacts">${g.phone?`<a class="btn sm call" href="tel:${esc(g.phone)}">Call</a>`:''}<button type="button" class="btn sm soft" data-restore="${esc(g.id)}"${canWrite?'':' disabled'}>Put back on the list</button></div>
     </details>`}).join('')||'<div class="note-line" style="padding:8px 0">Nothing yet.</div>';
+}
+/* Wait now: the longer of (a) the average wait of the last 3 tables seated in the past 30 minutes
+   and (b) how long the longest-waiting guest still on the list has waited so far.
+   Passed-over guests are left out because their wait is inflated by not replying.
+   The day's report keeps using the overall average. */
+const NOW_WINDOW_MS=30*60000, NOW_TABLES=3;
+function waitNowMs(active,done,now){
+  const queue=active.filter(g=>!g.passedCount);
+  if(!active.length) return 0;
+  const recent=done.filter(g=>g.status==='seated'&&g.doneAt&&!g.passedCount&&now-g.doneAt<=NOW_WINDOW_MS)
+    .sort((a,b)=>b.doneAt-a.doneAt).slice(0,NOW_TABLES);
+  const pace=recent.length?recent.reduce((n,g)=>n+(g.doneAt-g.addedAt),0)/recent.length:0;
+  const front=queue.length?Math.max(...queue.map(g=>now-g.addedAt)):0;
+  return Math.max(pace,front);
+}
+function waitNowText(active,done,now){
+  if(!active.length) return 'No wait';
+  const m=waitNowMs(active,done,now)/60000;
+  const r=Math.max(5,Math.round(m/5)*5);
+  return r<60?'~'+r+' min':'~'+Math.floor(r/60)+'h '+(r%60?r%60+'m':'');
 }
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 setInterval(()=>{if(guests.some(g=>g.status==='notified'||g.status==='waiting'))render()},1000);
