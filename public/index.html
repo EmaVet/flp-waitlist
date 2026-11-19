@@ -83,7 +83,7 @@ h2{font:700 13px var(--body);letter-spacing:.1em;text-transform:uppercase;color:
 .party b{font:800 22px var(--display)}
 .party small{display:block;font-size:10px;letter-spacing:.06em;text-transform:uppercase;margin-top:2px;color:var(--ink);opacity:.7}
 .who{min-width:0}
-.who .name{font:700 19px/1.2 var(--display);overflow-wrap:anywhere}
+.who .name{font:700 19px/1.2 var(--display);overflow-wrap:anywhere;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin-bottom:4px}
 .who .meta{color:var(--muted);font-size:14px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .who .note{font-size:14px;margin-top:2px}
 .badge{font:700 12px var(--body);letter-spacing:.05em;text-transform:uppercase;border-radius:999px;padding:5px 10px;white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -132,8 +132,9 @@ h2{font:700 13px var(--body);letter-spacing:.1em;text-transform:uppercase;color:
 .stepper{display:flex;align-items:center;gap:8px}
 .stepper .chip{width:48px;padding:10px 0;font-size:20px;line-height:1}
 .stepper input{width:72px;text-align:center;font:800 20px var(--body);font-variant-numeric:tabular-nums}
-.seat.out{background:var(--rose);color:var(--rose-ink);border-color:var(--rose);font-weight:700}
-.guest.outside{border-left:6px solid var(--rose)}
+.seat.out{background:#ff1f8e;color:#fff;border-color:#ff1f8e;font-weight:800;font-size:15px;letter-spacing:.08em;padding:6px 14px;box-shadow:0 0 0 3px rgba(255,31,142,.22)}
+.guest.outside{border-left:8px solid #ff1f8e}
+#seatChips .chip.out[aria-pressed="true"],#eSeatChips .chip.out[aria-pressed="true"]{background:#ff1f8e;border-color:#ff1f8e;color:#fff}
 .tbl{font:700 13px var(--body);background:var(--ink);color:var(--bg);border-radius:999px;padding:3px 9px;vertical-align:middle;white-space:nowrap;font-variant-numeric:tabular-nums}
 .tblin{display:flex;flex-direction:row;align-items:center;gap:6px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);flex:0 0 auto}
 .tblin input{width:86px;padding:8px 6px;text-transform:uppercase;font:700 17px var(--body);text-align:center;border-radius:10px;font-variant-numeric:tabular-nums}
@@ -407,6 +408,7 @@ $('today').textContent = new Date().toLocaleDateString('en-AU',{weekday:'long',d
 function chips(el, values, get, set, fmt){
   el.innerHTML='';
   values.forEach(v=>{const b=document.createElement('button');b.type='button';b.className='chip';b.textContent=fmt(v);
+    if(v==='Outside') b.classList.add('out');
     b.setAttribute('aria-pressed', v===get()); b.onclick=()=>{set(v);chips(el,values,get,set,fmt)}; el.appendChild(b)});
 }
 const drawSeat=()=>chips($('seatChips'),['Inside','Outside','Either'],()=>seat,v=>seat=v,String);
